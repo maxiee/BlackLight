@@ -73,6 +73,7 @@ public class LoginActivity extends AbsActivity {
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
+		Log.d(TAG, TAG + "onCreate");
 		mLayout = R.layout.web_login;
 		super.onCreate(savedInstanceState);
 
@@ -82,20 +83,25 @@ public class LoginActivity extends AbsActivity {
 		mWeb = Utility.findViewById(this, R.id.login_web);
 
 		// Create login instance
+        Log.d(TAG, "初始化登陆API缓存(LoginApiCache)");
 		mLogin = new LoginApiCache(this);
 
 		// Login page
+        Log.d(TAG, "初始化 WebSettings");
 		WebSettings settings = mWeb.getSettings();
 		settings.setJavaScriptEnabled(true);
 		settings.setSaveFormData(false);
 		settings.setSavePassword(false);
 		settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
+        Log.d(TAG, "将 MyWebViewClient 设为 mWeb 的 WebViewClient");
 		mWeb.setWebViewClient(new MyWebViewClient());
 
+        Log.d(TAG, "从 SP 中获取私钥");
 		if (PrivateKey.readFromPref(this)) {
 			mWeb.loadUrl(PrivateKey.getOauthLoginPage());
 		} else {
+            Log.d(TAG, "无私钥, 显示私钥填写页面");
 			mWeb.loadUrl("about:blank");
 			showAppKeyDialog();
 		}
@@ -123,19 +129,20 @@ public class LoginActivity extends AbsActivity {
 	}
 
 	private void handleRedirectedUrl(String url) {
+        Log.d(TAG, "判断url中是否有出错信息");
 		if (!url.contains("error")) {
+            Log.d(TAG, "获取 token 与 expiresIndex");
 			int tokenIndex = url.indexOf("access_token=");
 			int expiresIndex = url.indexOf("expires_in=");
 			String token = url.substring(tokenIndex + 13, url.indexOf("&", tokenIndex));
 			String expiresIn = url.substring(expiresIndex + 11, url.indexOf("&", expiresIndex));
 
-			if (DEBUG) {
-				Log.d(TAG, "url = " + url);
-				Log.d(TAG, "token = " + token);
-				Log.d(TAG, "expires_in = " + expiresIn);
-			}
+            Log.d(TAG, "url = " + url);
+            Log.d(TAG, "token = " + token);
+            Log.d(TAG, "expires_in = " + expiresIn);
 
-			new LoginTask().execute(token, expiresIn);
+            Log.d(TAG, "执行 LoginTask()");
+            new LoginTask().execute(token, expiresIn);
 		} else {
 			showLoginFail();
 		}
@@ -185,24 +192,27 @@ public class LoginActivity extends AbsActivity {
 				.create();
 
 		dialog.show();
-
+        // 按钮回调在外面设置
 		dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
 			@Override
 			public void onClick(View v) {
+                Log.d(TAG, "对话框点了确定");
 				String id = tvId.getText().toString().trim();
 				String sec = tvSecret.getText().toString().trim();
 				String uri = tvRedirect.getText().toString().trim();
 				String scope = tvScope.getText().toString().trim();
 				String pkg = tvPkg.getText().toString().trim();
-
+                // 只做了判空检查
 				if (!TextUtils.isEmpty(id) && !TextUtils.isEmpty(sec)
 					&& !TextUtils.isEmpty(uri) && !TextUtils.isEmpty(scope)) {
 
+                    Log.d(TAG, "写入私钥");
 					PrivateKey.setPrivateKey(id, sec, uri, pkg, scope);
 					PrivateKey.writeToPref(LoginActivity.this);
 					dialog.dismiss();
-					mWeb.loadUrl(PrivateKey.getOauthLoginPage());
 
+                    Log.d(TAG, "加载登陆页");
+					mWeb.loadUrl(PrivateKey.getOauthLoginPage());
 				}
 			}
 		});
@@ -214,6 +224,7 @@ public class LoginActivity extends AbsActivity {
 				boolean isEmpty = (Boolean) v.getTag();
 
 				if (!isEmpty) {
+                    Log.d(TAG, "已有内容的话 Base64 加密并复制");
 					Utility.copyToClipboard(LoginActivity.this, encodeLoginData(
 						tvId.getText().toString(), tvSecret.getText().toString(),
 						tvRedirect.getText().toString(), tvScope.getText().toString(),
@@ -240,8 +251,11 @@ public class LoginActivity extends AbsActivity {
 
 			@Override
 			public void afterTextChanged(Editable text) {
+                Log.d(TAG, "检测到输入框有内容加入");
 				String str = text.toString().trim();
+                Log.d(TAG, "判断是否是预置内容");
 				if (isLoginData(str)) {
+                    Log.d(TAG, "是的话解密并设置");
 					String[] data = decodeLoginData(text.toString());
 
 					if (data == null || data.length < 5) return;
@@ -262,6 +276,7 @@ public class LoginActivity extends AbsActivity {
 				}
 			}
 		};
+        Log.d(TAG, "为 EditText 添加 watcher");
 		tvId.addTextChangedListener(watcher);
 		tvSecret.addTextChangedListener(watcher);
 		tvRedirect.addTextChangedListener(watcher);
@@ -314,12 +329,34 @@ public class LoginActivity extends AbsActivity {
 
 	private class MyWebViewClient extends WebViewClient {
 
+        /**
+         * Give the host application a chance to take over the control when a new
+         * url is about to be loaded in the current WebView. If WebViewClient is not
+         * provided, by default WebView will ask Activity Manager to choose the
+         * proper handler for the url. If WebViewClient is provided, return true
+         * means the host application handles the url, while return false means the
+         * current WebView handles the url.
+         * This method is not called for requests using the POST "method".
+         *
+         * 给主程序一个机会当一个新的 url 快要在当前 WebView 中加载出来的时候,是否掌控
+         * 如果没有提供 WebViewClient,默认 WebView 会问 Activity Manager 选择合适的
+         * 处理器打开,如提供,返回 true 表示已有 WebViewClient 掌控
+         *
+         * @param view The WebView that is initiating the callback.
+         * @param url The url to be loaded.
+         * @return True if the host application wants to leave the current WebView
+         *         and handle the url itself, otherwise return false.
+         */
 		@Override
 		public boolean shouldOverrideUrlLoading(WebView view, String url) {
+            Log.d(TAG, "检查是否是跳转 url");
 			if (PrivateKey.isUrlRedirected(url)) {
+                Log.d(TAG, "这是点击确定,之后发生跳转");
 				view.stopLoading();
+                Log.d(TAG, "交由 handleRedirectedUrl 处理");
 				handleRedirectedUrl(url);
 			} else {
+                Log.d(TAG, "这是填写登陆密码的那个url");
 				view.loadUrl(url);
 			}
 			return true;
@@ -338,6 +375,7 @@ public class LoginActivity extends AbsActivity {
 
 	private class LoginTask extends AsyncTask<String, Void, Long>
 	{
+        public final String TAG = LoginTask.class.getSimpleName();
 		private ProgressDialog progDialog;
 
 		@Override
@@ -356,6 +394,7 @@ public class LoginActivity extends AbsActivity {
 			}
 
 			if (!mIsMulti) {
+                Log.d(TAG, "调用 LoginApiCache 的 login 方法");
 				mLogin.login(params[0], params[1]);
 				return mLogin.getExpireDate();
 			} else {
@@ -369,11 +408,10 @@ public class LoginActivity extends AbsActivity {
 			progDialog.dismiss();
 
 			if (!mIsMulti && mLogin.getAccessToken() != null) {
-				if (DEBUG) {
-					Log.d(TAG, "Access Token:" + mLogin.getAccessToken());
-					Log.d(TAG, "Expires in:" + mLogin.getExpireDate());
-				}
-				mLogin.cache();
+                Log.d(TAG, "Access Token:" + mLogin.getAccessToken());
+                Log.d(TAG, "Expires in:" + mLogin.getExpireDate());
+                Log.d(TAG, "调用 LoginApiCache 的 cache 方法");
+                mLogin.cache();
 				BaseApi.setAccessToken(mLogin.getAccessToken());
 			} else if (!mIsMulti && mLogin.getAccessToken() == null) {
 				showLoginFail();
@@ -391,6 +429,7 @@ public class LoginActivity extends AbsActivity {
 					public void onClick(DialogInterface dialog, int id) {
 						dialog.dismiss();
 						if (!mIsMulti) {
+                            Log.d(TAG, "点击确定进入主界面");
 							Intent i = new Intent();
 							i.setAction(Intent.ACTION_MAIN);
 							i.setClass(LoginActivity.this, MainActivity.class);

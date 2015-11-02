@@ -51,15 +51,24 @@ public class LoginApiCache
 	private ArrayList<Long> mExpireDates = new ArrayList<Long>();
 	
 	public LoginApiCache(Context context) {
+        Log.d(TAG, "LoginApiCache 构造:");
 		mContext = context;
 		mPrefs = context.getSharedPreferences("access_token", Context.MODE_PRIVATE);
 		mAccessToken = mPrefs.getString("access_token", null);
 		mUid = mPrefs.getString("uid", "");
 		mExpireDate = mPrefs.getLong("expires_in", Long.MIN_VALUE);
-		
-		if (mAccessToken != null) {
-			BaseApi.setAccessToken(mAccessToken);
+
+		if (mAccessToken == null) {
+			Log.d(TAG, "mAccessToken 为空");
+		} else {
+            Log.d(TAG, "mAccessToken:" + mAccessToken);
+            Log.d(TAG, "mUid:" + mUid);
+            Log.d(TAG, "mExpireDate:" + String.valueOf(mExpireDate));
+            Log.d(TAG, "将 mAccessToken 存进 BaseApi");
+            BaseApi.setAccessToken(mAccessToken);
 		}
+
+        Log.d(TAG, "多用户管理");
 		parseMultiUser();
 	}
 	
@@ -68,7 +77,8 @@ public class LoginApiCache
 		BaseApi.setAccessToken(mAccessToken);
 		mExpireDate = System.currentTimeMillis() + Long.valueOf(expire) * 1000;
 		mUid = AccountApi.getUid();
-	}
+        Log.d(TAG, "联网获取mUid:" + mUid);
+    }
 	
 	public void logout() {
 		mAccessToken = null;
