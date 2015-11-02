@@ -6,12 +6,12 @@ repositories {
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "21.1.2"
+    buildToolsVersion "23.0.1"
 
     defaultConfig {
         applicationId "us.shandian.blacklight.snapshot"
         minSdkVersion 15
-        targetSdkVersion 21
+        targetSdkVersion 23
         versionCode 42
         versionName "snapshot"
     }
@@ -27,6 +27,5 @@ android {
 }
 
 dependencies {
-    debugCompile project(path:':blacklight-base', configuration: 'debug')
-    releaseCompile project(path:':blacklight-base', configuration: 'release')
+    compile project(path:':blacklight-base')
 }
